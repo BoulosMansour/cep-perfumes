@@ -1,5 +1,0 @@
-name = "cep-perfumes"
-compatibility_date = "2025-05-31"
-
-[assets]
-directory = "./cep-perfumes/dist"
