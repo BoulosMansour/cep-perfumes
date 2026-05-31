@@ -28,13 +28,13 @@ Follow these steps in order. Takes ~15 minutes total.
    |---|---|
    | Framework preset | None (leave blank) |
    | Build command | `cd cep-perfumes && npm ci && npm run build` |
-   | Build output directory | `cep-perfumes/dist` |
+
+   > If Cloudflare asks for a **Build output directory**, set it to `cep-perfumes/dist`.
 5. Under **Environment variables**, add:
    | Name | Value |
    |---|---|
    | `VITE_SUPABASE_URL` | your Supabase project URL |
    | `VITE_SUPABASE_ANON_KEY` | your Supabase anon key |
-   | `VITE_WHATSAPP_NUMBER` | your phone in international format, no `+` (e.g. `9613001234`) |
 6. Click **Save and Deploy** — the first deploy runs now.
 7. Note your **Cloudflare Account ID** from the URL: `dash.cloudflare.com/<ACCOUNT_ID>/...`
 
@@ -48,7 +48,6 @@ In your GitHub repository → **Settings → Secrets and variables → Actions �
 |---|---|
 | `VITE_SUPABASE_URL` | Supabase → Project Settings → API |
 | `VITE_SUPABASE_ANON_KEY` | Supabase → Project Settings → API (anon/public key) |
-| `VITE_WHATSAPP_NUMBER` | Your WhatsApp number (no `+`) |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard URL or **Workers & Pages → Settings** |
 | `CLOUDFLARE_API_TOKEN` | See below |
 
@@ -65,7 +64,8 @@ In your GitHub repository → **Settings → Secrets and variables → Actions �
 ```bash
 # Inside cep-perfumes/
 cp .env.example .env.local
-# Fill in .env.local with real values (never commit this file)
+# Fill in VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY (never commit this file)
+# WhatsApp numbers are managed in the admin panel — no env var needed
 
 npm install
 npm run dev
@@ -85,9 +85,12 @@ There is no link to it from the public store — enter the URL manually.
 ## 6. Post-Deploy Checklist
 
 - [ ] Store page loads products (initially empty)
-- [ ] WhatsApp button opens the correct number
 - [ ] `/admin` shows login form
 - [ ] Admin can log in with the Supabase user created in step 1
+- [ ] Admin can add a WhatsApp number (label + number) in the **WhatsApp Numbers** panel
+- [ ] WhatsApp button appears on the store and opens the correct number
+- [ ] Adding a second number shows a popup menu on the store with both options
+- [ ] Admin can toggle a number active/inactive
 - [ ] Admin can add a product with an image
 - [ ] Product appears on the store page
 - [ ] Admin can edit and delete products
