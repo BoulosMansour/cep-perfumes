@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem -Path \"d:\\\\cep-perfumes\" -Recurse -Directory | Select-Object -First 50 | ForEach-Object { $_.FullName })",
+      "Bash(npx tsc *)",
+      "Bash(node_modules\\\\.bin\\\\tsc --noEmit)"
+    ]
+  }
+}

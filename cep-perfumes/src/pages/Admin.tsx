@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, STORAGE_BUCKET, getImageUrl } from '../lib/supabase';
-import type { Product, ProductInsert } from '../types';
+import type { Product, ProductInsert, WhatsAppNumber, WhatsAppNumberInsert } from '../types';
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
@@ -260,6 +260,264 @@ function ProductForm({ editing, onSave, onCancel }: ProductFormProps) {
   );
 }
 
+// ─── WhatsApp Numbers Panel ───────────────────────────────────────────────────
+
+interface WhatsAppNumberFormProps {
+  editing: WhatsAppNumber | null;
+  onSave: () => void;
+  onCancel: () => void;
+}
+
+function WhatsAppNumberForm({ editing, onSave, onCancel }: WhatsAppNumberFormProps) {
+  const [label, setLabel] = useState(editing?.label ?? '');
+  const [number, setNumber] = useState(editing?.number ?? '');
+  const [sortOrder, setSortOrder] = useState(editing ? String(editing.sort_order) : '0');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+
+    const payload: WhatsAppNumberInsert = {
+      label: label.trim(),
+      number: number.trim().replace(/^\+/, ''),
+      is_active: editing?.is_active ?? true,
+      sort_order: parseInt(sortOrder) || 0,
+    };
+
+    try {
+      if (editing) {
+        const { error } = await supabase
+          .from('whatsapp_numbers')
+          .update(payload)
+          .eq('id', editing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('whatsapp_numbers').insert(payload);
+        if (error) throw error;
+      }
+      onSave();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-4 p-4 bg-stone-50 rounded-xl border border-stone-200 space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-stone-700 mb-1">Label *</label>
+          <input
+            type="text"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            required
+            placeholder="e.g. Sales, Support"
+            className="w-full border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-stone-700 mb-1">
+            Number * <span className="text-stone-400 font-normal">(international, no +)</span>
+          </label>
+          <input
+            type="text"
+            value={number}
+            onChange={(e) => setNumber(e.target.value)}
+            required
+            placeholder="e.g. 9613001234"
+            className="w-full border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+          />
+        </div>
+      </div>
+      <div className="w-28">
+        <label className="block text-xs font-medium text-stone-700 mb-1">Order</label>
+        <input
+          type="number"
+          value={sortOrder}
+          onChange={(e) => setSortOrder(e.target.value)}
+          min="0"
+          className="w-full border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+        />
+      </div>
+      {error && (
+        <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+          {error}
+        </p>
+      )}
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={saving}
+          className="bg-amber-700 hover:bg-amber-800 disabled:bg-amber-300 text-white font-medium rounded-lg px-4 py-1.5 text-sm transition-colors"
+        >
+          {saving ? 'Saving…' : editing ? 'Save Changes' : 'Add Number'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={saving}
+          className="border border-stone-200 hover:bg-stone-100 text-stone-700 font-medium rounded-lg px-4 py-1.5 text-sm transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function WhatsAppNumbersPanel() {
+  const [numbers, setNumbers] = useState<WhatsAppNumber[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingNumber, setEditingNumber] = useState<WhatsAppNumber | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [error, setError] = useState('');
+
+  const fetchNumbers = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from('whatsapp_numbers')
+      .select('*')
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true });
+    setNumbers(data ?? []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchNumbers();
+  }, []);
+
+  const openAdd = () => {
+    setEditingNumber(null);
+    setFormOpen(true);
+  };
+
+  const openEdit = (n: WhatsAppNumber) => {
+    setEditingNumber(n);
+    setFormOpen(true);
+  };
+
+  const closeForm = () => {
+    setFormOpen(false);
+    setEditingNumber(null);
+  };
+
+  const handleSave = () => {
+    closeForm();
+    fetchNumbers();
+  };
+
+  const toggleActive = async (n: WhatsAppNumber) => {
+    const { error } = await supabase
+      .from('whatsapp_numbers')
+      .update({ is_active: !n.is_active })
+      .eq('id', n.id);
+    if (error) {
+      setError(error.message);
+    } else {
+      setNumbers((prev) =>
+        prev.map((item) => (item.id === n.id ? { ...item, is_active: !item.is_active } : item))
+      );
+    }
+  };
+
+  const handleDelete = async (n: WhatsAppNumber) => {
+    if (!window.confirm(`Delete "${n.label}"? This cannot be undone.`)) return;
+    setDeletingId(n.id);
+    setError('');
+    const { error } = await supabase.from('whatsapp_numbers').delete().eq('id', n.id);
+    if (error) {
+      setError(error.message);
+    } else {
+      setNumbers((prev) => prev.filter((item) => item.id !== n.id));
+    }
+    setDeletingId(null);
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-base font-semibold text-stone-900">WhatsApp Numbers</h2>
+          <p className="text-xs text-stone-400 mt-0.5">Visible to store visitors as a contact button</p>
+        </div>
+        {!formOpen && (
+          <button
+            onClick={openAdd}
+            className="bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-3 py-1.5 text-sm transition-colors flex items-center gap-1.5"
+          >
+            <span className="text-base leading-none">+</span>
+            Add Number
+          </button>
+        )}
+      </div>
+
+      {error && (
+        <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-3">
+          {error}
+        </p>
+      )}
+
+      {formOpen && (
+        <WhatsAppNumberForm editing={editingNumber} onSave={handleSave} onCancel={closeForm} />
+      )}
+
+      {loading ? (
+        <div className="space-y-2 mt-4">
+          {[1, 2].map((i) => (
+            <div key={i} className="h-12 bg-stone-50 rounded-lg animate-pulse" />
+          ))}
+        </div>
+      ) : numbers.length === 0 ? (
+        <p className="text-sm text-stone-400 text-center py-6">
+          No numbers yet. Add one to show a WhatsApp button on the store.
+        </p>
+      ) : (
+        <ul className="mt-4 divide-y divide-stone-100">
+          {numbers.map((n) => (
+            <li key={n.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-stone-800 truncate">{n.label}</p>
+                <p className="text-xs text-stone-400 font-mono">+{n.number}</p>
+              </div>
+              <button
+                onClick={() => toggleActive(n)}
+                title={n.is_active ? 'Active — click to disable' : 'Inactive — click to enable'}
+                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                  n.is_active
+                    ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                    : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
+                }`}
+              >
+                {n.is_active ? 'Active' : 'Inactive'}
+              </button>
+              <button
+                onClick={() => openEdit(n)}
+                className="text-xs font-medium border border-stone-200 hover:bg-stone-50 text-stone-700 rounded-lg px-3 py-1.5 transition-colors"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => handleDelete(n)}
+                disabled={deletingId === n.id}
+                className="text-xs font-medium bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50"
+              >
+                {deletingId === n.id ? '…' : 'Delete'}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 function Dashboard({ session }: { session: Session }) {
@@ -353,103 +611,106 @@ function Dashboard({ session }: { session: Session }) {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-        {/* Add button */}
-        {!formOpen && (
-          <div className="flex justify-end">
-            <button
-              onClick={openAdd}
-              className="bg-amber-700 hover:bg-amber-800 text-white font-medium rounded-lg px-4 py-2 text-sm transition-colors flex items-center gap-2"
-            >
-              <span className="text-lg leading-none">+</span>
-              Add Product
-            </button>
-          </div>
-        )}
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+        {/* WhatsApp Numbers */}
+        <WhatsAppNumbersPanel />
 
-        {/* Form */}
-        {formOpen && (
-          <ProductForm editing={editingProduct} onSave={handleSave} onCancel={closeForm} />
-        )}
-
-        {/* Delete error */}
-        {deleteError && (
-          <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-            {deleteError}
-          </p>
-        )}
-
-        {/* Product list */}
-        {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-stone-100 overflow-hidden animate-pulse">
-                <div className="aspect-video bg-stone-100" />
-                <div className="p-4 space-y-2">
-                  <div className="h-4 bg-stone-100 rounded w-3/4" />
-                  <div className="h-3 bg-stone-100 rounded w-1/3" />
-                </div>
-              </div>
-            ))}
+        {/* Products section */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-stone-900">Products</h2>
+            {!formOpen && (
+              <button
+                onClick={openAdd}
+                className="bg-amber-700 hover:bg-amber-800 text-white font-medium rounded-lg px-4 py-2 text-sm transition-colors flex items-center gap-2"
+              >
+                <span className="text-lg leading-none">+</span>
+                Add Product
+              </button>
+            )}
           </div>
-        ) : products.length === 0 ? (
-          <div className="text-center py-20 text-stone-400">
-            <p className="text-lg">No products yet.</p>
-            <p className="mt-1 text-sm">Click "Add Product" to get started.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {products.map((product) => {
-              const imageUrl = product.image_url ? getImageUrl(product.image_url) : null;
-              return (
-                <div
-                  key={product.id}
-                  className="bg-white rounded-2xl border border-stone-100 overflow-hidden shadow-sm"
-                >
-                  <div className="aspect-video bg-stone-50 overflow-hidden">
-                    {imageUrl ? (
-                      <img
-                        src={imageUrl}
-                        alt={product.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-stone-200">
-                        <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                    )}
+
+          {formOpen && (
+            <ProductForm editing={editingProduct} onSave={handleSave} onCancel={closeForm} />
+          )}
+
+          {deleteError && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+              {deleteError}
+            </p>
+          )}
+
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="bg-white rounded-2xl border border-stone-100 overflow-hidden animate-pulse">
+                  <div className="aspect-video bg-stone-100" />
+                  <div className="p-4 space-y-2">
+                    <div className="h-4 bg-stone-100 rounded w-3/4" />
+                    <div className="h-3 bg-stone-100 rounded w-1/3" />
                   </div>
-                  <div className="p-4">
-                    <p className="font-semibold text-stone-900 truncate">{product.name}</p>
-                    {product.description && (
-                      <p className="text-xs text-stone-400 mt-0.5 line-clamp-1">{product.description}</p>
-                    )}
-                    <p className="mt-1 font-bold text-amber-800 text-sm">
-                      ${Number(product.price).toFixed(2)}
-                    </p>
-                    <div className="mt-3 flex gap-2">
-                      <button
-                        onClick={() => openEdit(product)}
-                        className="flex-1 text-xs font-medium border border-stone-200 hover:bg-stone-50 text-stone-700 rounded-lg py-1.5 transition-colors"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(product)}
-                        disabled={deletingId === product.id}
-                        className="flex-1 text-xs font-medium bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded-lg py-1.5 transition-colors disabled:opacity-50"
-                      >
-                        {deletingId === product.id ? 'Deleting…' : 'Delete'}
-                      </button>
+                </div>
+              ))}
+            </div>
+          ) : products.length === 0 ? (
+            <div className="text-center py-20 text-stone-400">
+              <p className="text-lg">No products yet.</p>
+              <p className="mt-1 text-sm">Click "Add Product" to get started.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {products.map((product) => {
+                const imageUrl = product.image_url ? getImageUrl(product.image_url) : null;
+                return (
+                  <div
+                    key={product.id}
+                    className="bg-white rounded-2xl border border-stone-100 overflow-hidden shadow-sm"
+                  >
+                    <div className="aspect-video bg-stone-50 overflow-hidden">
+                      {imageUrl ? (
+                        <img
+                          src={imageUrl}
+                          alt={product.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-stone-200">
+                          <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-4">
+                      <p className="font-semibold text-stone-900 truncate">{product.name}</p>
+                      {product.description && (
+                        <p className="text-xs text-stone-400 mt-0.5 line-clamp-1">{product.description}</p>
+                      )}
+                      <p className="mt-1 font-bold text-amber-800 text-sm">
+                        ${Number(product.price).toFixed(2)}
+                      </p>
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          onClick={() => openEdit(product)}
+                          className="flex-1 text-xs font-medium border border-stone-200 hover:bg-stone-50 text-stone-700 rounded-lg py-1.5 transition-colors"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(product)}
+                          disabled={deletingId === product.id}
+                          className="flex-1 text-xs font-medium bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded-lg py-1.5 transition-colors disabled:opacity-50"
+                        >
+                          {deletingId === product.id ? 'Deleting…' : 'Delete'}
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );

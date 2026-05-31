@@ -48,6 +48,35 @@ CREATE POLICY "Authenticated delete products"
   ON products FOR DELETE
   USING (auth.role() = 'authenticated');
 
+-- 2b. WhatsApp numbers table
+CREATE TABLE IF NOT EXISTS whatsapp_numbers (
+  id         UUID              DEFAULT gen_random_uuid() PRIMARY KEY,
+  label      TEXT              NOT NULL,
+  number     TEXT              NOT NULL,
+  is_active  BOOLEAN           NOT NULL DEFAULT true,
+  sort_order INTEGER           NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ       DEFAULT NOW()
+);
+
+ALTER TABLE whatsapp_numbers ENABLE ROW LEVEL SECURITY;
+
+-- Anyone can read active numbers (store visitors)
+CREATE POLICY "Public read whatsapp_numbers"
+  ON whatsapp_numbers FOR SELECT
+  USING (true);
+
+CREATE POLICY "Authenticated insert whatsapp_numbers"
+  ON whatsapp_numbers FOR INSERT
+  WITH CHECK (auth.role() = 'authenticated');
+
+CREATE POLICY "Authenticated update whatsapp_numbers"
+  ON whatsapp_numbers FOR UPDATE
+  USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Authenticated delete whatsapp_numbers"
+  ON whatsapp_numbers FOR DELETE
+  USING (auth.role() = 'authenticated');
+
 -- 3. Storage bucket for product images
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('product-images', 'product-images', true)
